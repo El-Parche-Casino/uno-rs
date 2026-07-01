@@ -1,0 +1,23 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: uno-rs
+
+  data:
+    redis:
+      host: localhost
+      port: 6381
+
+  security:
+    user:
+      name: disabled
+      password: disabled
+
+jwt:
+  secret: elparche-casino-super-secret-key-2026-must-be-at-least-256-bits-long
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html

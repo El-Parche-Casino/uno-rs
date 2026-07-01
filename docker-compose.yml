@@ -1,0 +1,6 @@
+services:
+  redis:
+    image: redis:7
+    container_name: elparche-uno-redis
+    ports:
+      - "6381:6379"
