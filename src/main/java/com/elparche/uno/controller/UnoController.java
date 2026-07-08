@@ -29,6 +29,7 @@ public class UnoController {
                     body.get("nombre"),
                     body.get("creadorId"),
                     body.get("creadorUsername"),
+                    body.get("icono"),
                     Integer.parseInt(body.getOrDefault("maxJugadores", "4")),
                     SalaUno.TipoSala.valueOf(body.getOrDefault("tipo", "PUBLICA")),
                     Double.parseDouble(body.getOrDefault("apuestaPorJugador", "50.0"))
@@ -39,7 +40,7 @@ public class UnoController {
         }
     }
 
-    @Operation(summary = "Unirse a sala", description = "Un jugador se une a una sala existente y su apuesta se descuenta automáticamente")
+    @Operation(summary = "Unirse a sala", description = "Un jugador se une a una sala existente")
     @PostMapping("/salas/{salaId}/unirse")
     public ResponseEntity<SalaUno> unirseASala(
             @PathVariable String salaId,
@@ -49,6 +50,7 @@ public class UnoController {
                     salaId,
                     body.get("jugadorId"),
                     body.get("jugadorUsername"),
+                    body.get("icono"),
                     body.get("codigo")
             );
             return ResponseEntity.ok(sala);
@@ -57,15 +59,23 @@ public class UnoController {
         }
     }
 
-    @Operation(summary = "Ver salas públicas", description = "Lista todas las salas públicas disponibles con su apuesta")
+    @Operation(summary = "Ver salas públicas", description = "Lista todas las salas públicas disponibles")
     @GetMapping("/salas/publicas")
     public ResponseEntity<Collection<SalaUno>> getSalasPublicas() {
         return ResponseEntity.ok(gestorSalas.getSalasPublicas());
     }
 
-    @Operation(summary = "Ver sala", description = "Obtiene el estado actual de una sala incluyendo el pozo acumulado")
+    @Operation(summary = "Ver sala", description = "Obtiene el estado actual de una sala")
     @GetMapping("/salas/{salaId}")
     public ResponseEntity<SalaUno> getSala(@PathVariable String salaId) {
+        SalaUno sala = gestorSalas.getSala(salaId);
+        if (sala == null) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(sala);
+    }
+
+    @Operation(summary = "Obtener estado sala", description = "Obtiene el estado actual para sincronizar al conectarse")
+    @GetMapping("/salas/{salaId}/estado")
+    public ResponseEntity<SalaUno> getEstadoSala(@PathVariable String salaId) {
         SalaUno sala = gestorSalas.getSala(salaId);
         if (sala == null) return ResponseEntity.notFound().build();
         return ResponseEntity.ok(sala);

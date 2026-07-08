@@ -69,15 +69,30 @@ public class MotorUno {
             return ResultadoJugada.error("No tienes esa carta");
         }
 
-        Carta cartaActual = sala.getCartaActual();
-        Carta cartaEfectiva = Carta.builder()
-                .color(Carta.Color.valueOf(sala.getColorActual()))
-                .valor(cartaActual.getValor())
-                .id(cartaActual.getId())
-                .build();
+        if (jugador.isDebeResponderPenalizacion()) {
+            String tipoPen = sala.getTipoPenalizacion();
+            if ("MAS_DOS".equals(tipoPen)) {
+                if (carta.getValor() != Carta.Valor.MAS_DOS && carta.getValor() != Carta.Valor.MAS_CUATRO) {
+                    return ResultadoJugada.error(
+                            "Debes responder con +2 o +4, o roba " + sala.getPenalizacionAcumulada() + " cartas");
+                }
+            } else if ("MAS_CUATRO".equals(tipoPen)) {
+                if (carta.getValor() != Carta.Valor.MAS_CUATRO) {
+                    return ResultadoJugada.error(
+                            "Debes responder con +4, o roba " + sala.getPenalizacionAcumulada() + " cartas");
+                }
+            }
+            jugador.setDebeResponderPenalizacion(false);
+        } else {
+            Carta cartaEfectiva = Carta.builder()
+                    .color(Carta.Color.valueOf(sala.getColorActual()))
+                    .valor(sala.getCartaActual().getValor())
+                    .id(sala.getCartaActual().getId())
+                    .build();
 
-        if (!carta.esCompatibleCon(cartaEfectiva)) {
-            return ResultadoJugada.error("Esa carta no es compatible con la carta actual");
+            if (!carta.esCompatibleCon(cartaEfectiva)) {
+                return ResultadoJugada.error("Esa carta no es compatible con la carta actual");
+            }
         }
 
         if (carta.esComodin() && (colorElegido == null || colorElegido.isEmpty())) {
@@ -94,13 +109,16 @@ public class MotorUno {
             sala.setColorActual(carta.getColor().name());
         }
 
+        jugador.setDijoUno(false);
+
         if (jugador.gano()) {
             sala.setEstado(SalaUno.EstadoSala.TERMINADA);
+            sala.setPenalizacionAcumulada(0);
+            sala.setTipoPenalizacion(null);
             return ResultadoJugada.ganador(jugador.getUsername());
         }
 
         String mensaje = aplicarEfecto(sala, carta);
-
         return ResultadoJugada.exito(jugador.getUsername(), carta, mensaje);
     }
 
@@ -110,11 +128,33 @@ public class MotorUno {
         }
 
         Jugador jugador = sala.getJugadorById(jugadorId);
+
+        if (jugador.isDebeResponderPenalizacion()) {
+            int cantidad = sala.getPenalizacionAcumulada();
+            if (cantidad <= 0) cantidad = 2;
+
+            for (int i = 0; i < cantidad; i++) {
+                jugador.agregarCarta(
+                        MazoUno.robarCarta(sala.getMazo(), sala.getPillaDescarte()));
+            }
+
+            String msg = jugador.getUsername() + " comió " + cantidad + " cartas";
+
+            sala.setPenalizacionAcumulada(0);
+            sala.setTipoPenalizacion(null);
+            jugador.setDebeResponderPenalizacion(false);
+
+            for (Jugador j : sala.getJugadores()) {
+                j.setDebeResponderPenalizacion(false);
+            }
+
+            siguienteTurno(sala);
+            return ResultadoJugada.exito(jugador.getUsername(), null, msg);
+        }
+
         Carta carta = MazoUno.robarCarta(sala.getMazo(), sala.getPillaDescarte());
         jugador.agregarCarta(carta);
-
         siguienteTurno(sala);
-
         return ResultadoJugada.robo(jugador.getUsername(), carta);
     }
 
@@ -126,15 +166,29 @@ public class MotorUno {
 
         if (jugador.tieneUnaCartaSola()) {
             jugador.setDijoUno(true);
-            return ResultadoJugada.exito(jugador.getUsername(), null, "¡UNO!");
+            jugador.setPenalizadoUno(false);
+            return ResultadoJugada.exito(jugador.getUsername(), null, jugador.getUsername() + " dijo ¡UNO!");
         } else {
+            return ResultadoJugada.error("No puedes decir UNO con " + jugador.getCantidadCartas() + " cartas");
+        }
+    }
 
+    public static ResultadoJugada reportarUno(SalaUno sala, String reportadorId, String reportadoId) {
+        Jugador reportado = sala.getJugadorById(reportadoId);
+        if (reportado == null) {
+            return ResultadoJugada.error("Jugador no encontrado");
+        }
+
+        if (reportado.tieneUnaCartaSola() && !reportado.isDijoUno()) {
             Carta c1 = MazoUno.robarCarta(sala.getMazo(), sala.getPillaDescarte());
             Carta c2 = MazoUno.robarCarta(sala.getMazo(), sala.getPillaDescarte());
-            jugador.agregarCarta(c1);
-            jugador.agregarCarta(c2);
-            return ResultadoJugada.error(
-                    jugador.getUsername() + " dijo UNO sin tener una carta — roba 2");
+            reportado.agregarCarta(c1);
+            reportado.agregarCarta(c2);
+            reportado.setPenalizadoUno(true);
+            return ResultadoJugada.exito(reportado.getUsername(), null,
+                    reportado.getUsername() + " no dijo UNO — roba 2 cartas de penalización");
+        } else {
+            return ResultadoJugada.error("No se puede reportar a ese jugador");
         }
     }
 
@@ -149,31 +203,29 @@ public class MotorUno {
             case REVERSA -> {
                 sala.setSentidoHorario(!sala.isSentidoHorario());
                 if (sala.getJugadores().size() == 2) {
-                    siguienteTurno(sala);
+                    return "Sentido invertido — juegas de nuevo";
                 } else {
                     siguienteTurno(sala);
+                    return "Sentido invertido";
                 }
-                return "Sentido invertido";
             }
             case MAS_DOS -> {
+                sala.setPenalizacionAcumulada(sala.getPenalizacionAcumulada() + 2);
+                sala.setTipoPenalizacion("MAS_DOS");
                 siguienteTurno(sala);
                 Jugador siguiente = sala.getJugadorActual();
-                for (int i = 0; i < 2; i++) {
-                    siguiente.agregarCarta(
-                            MazoUno.robarCarta(sala.getMazo(), sala.getPillaDescarte()));
-                }
-                siguienteTurno(sala);
-                return siguiente.getUsername() + " roba 2 cartas y pierde turno";
+                siguiente.setDebeResponderPenalizacion(true);
+                return siguiente.getUsername() + " recibe +" + sala.getPenalizacionAcumulada()
+                        + " — puede responder con +2 o comer las cartas";
             }
             case MAS_CUATRO -> {
+                sala.setPenalizacionAcumulada(sala.getPenalizacionAcumulada() + 4);
+                sala.setTipoPenalizacion("MAS_CUATRO");
                 siguienteTurno(sala);
                 Jugador siguiente = sala.getJugadorActual();
-                for (int i = 0; i < 4; i++) {
-                    siguiente.agregarCarta(
-                            MazoUno.robarCarta(sala.getMazo(), sala.getPillaDescarte()));
-                }
-                siguienteTurno(sala);
-                return siguiente.getUsername() + " roba 4 cartas y pierde turno";
+                siguiente.setDebeResponderPenalizacion(true);
+                return siguiente.getUsername() + " recibe +" + sala.getPenalizacionAcumulada()
+                        + " — puede responder con +4 o comer las cartas";
             }
             default -> {
                 siguienteTurno(sala);

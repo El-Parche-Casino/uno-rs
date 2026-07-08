@@ -19,13 +19,22 @@ public class Jugador {
     private boolean conectado;
 
     @Builder.Default
+    private String icono = "🦁";
+
+    @Builder.Default
     private List<Carta> mano = new ArrayList<>();
 
     @Builder.Default
     private boolean dijoUno = false;
 
     @Builder.Default
+    private boolean penalizadoUno = false;
+
+    @Builder.Default
     private int cartasRobadas = 0;
+
+    @Builder.Default
+    private boolean debeResponderPenalizacion = false;
 
     public int getCantidadCartas() {
         return mano.size();

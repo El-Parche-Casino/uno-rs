@@ -45,6 +45,12 @@ public class SalaUno {
     @Builder.Default
     private LocalDateTime creadaEn = LocalDateTime.now();
 
+    @Builder.Default
+    private String tipoPenalizacion = null;
+
+    @Builder.Default
+    private int penalizacionAcumulada = 0;
+
     public enum EstadoSala {
         ESPERANDO, EN_JUEGO, TERMINADA
     }

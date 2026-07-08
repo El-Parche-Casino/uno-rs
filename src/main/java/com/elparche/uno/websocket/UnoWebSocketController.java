@@ -11,6 +11,7 @@ import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
+import com.elparche.uno.model.Jugador;
 
 import java.util.Map;
 
@@ -30,8 +31,10 @@ public class UnoWebSocketController {
             SalaUno sala = gestorSalas.iniciarJuego(salaId, jugadorId);
             broadcastEstadoSala(sala);
             broadcastMensaje(salaId, "El juego ha comenzado");
+            log.info("Juego iniciado en sala {} por {}", salaId, jugadorId);
         } catch (Exception e) {
             broadcastError(salaId, e.getMessage());
+            log.error("Error iniciando juego en sala {}: {}", salaId, e.getMessage());
         }
     }
 
@@ -49,21 +52,26 @@ public class UnoWebSocketController {
                 return;
             }
 
-            ResultadoJugada resultado = MotorUno.jugarCarta(
-                    sala, jugadorId, cartaId, colorElegido);
+            ResultadoJugada resultado;
+            synchronized (sala) {
+                resultado = MotorUno.jugarCarta(sala, jugadorId, cartaId, colorElegido);
+            }
 
             if (resultado.isExitoso()) {
                 broadcastEstadoSala(sala);
                 broadcastMensaje(salaId, resultado.getMensaje());
 
                 if (resultado.getTipo() == ResultadoJugada.TipoResultado.GANADOR) {
-                    broadcastMensaje(salaId, "🎉 " + resultado.getMensaje());
+                    broadcastMensaje(salaId, "🏆 " + resultado.getMensaje());
+                    gestorSalas.registrarGanador(salaId, resultado.getJugadorUsername());
                 }
+                log.info("Carta jugada en sala {} por {} — {}", salaId, jugadorId, resultado.getMensaje());
             } else {
                 enviarErrorAJugador(salaId, jugadorId, resultado.getMensaje());
             }
         } catch (Exception e) {
             broadcastError(salaId, e.getMessage());
+            log.error("Error jugando carta en sala {}: {}", salaId, e.getMessage());
         }
     }
 
@@ -79,16 +87,21 @@ public class UnoWebSocketController {
                 return;
             }
 
-            ResultadoJugada resultado = MotorUno.robarCarta(sala, jugadorId);
+            ResultadoJugada resultado;
+            synchronized (sala) {
+                resultado = MotorUno.robarCarta(sala, jugadorId);
+            }
 
             if (resultado.isExitoso()) {
                 broadcastEstadoSala(sala);
                 broadcastMensaje(salaId, resultado.getMensaje());
+                log.info("Carta robada en sala {} por {}", salaId, jugadorId);
             } else {
                 enviarErrorAJugador(salaId, jugadorId, resultado.getMensaje());
             }
         } catch (Exception e) {
             broadcastError(salaId, e.getMessage());
+            log.error("Error robando carta en sala {}: {}", salaId, e.getMessage());
         }
     }
 
@@ -104,12 +117,68 @@ public class UnoWebSocketController {
                 return;
             }
 
-            ResultadoJugada resultado = MotorUno.decirUno(sala, jugadorId);
+            ResultadoJugada resultado;
+            synchronized (sala) {
+                resultado = MotorUno.decirUno(sala, jugadorId);
+            }
+
             broadcastEstadoSala(sala);
             broadcastMensaje(salaId, resultado.getMensaje());
+            log.info("UNO dicho en sala {} por {}", salaId, jugadorId);
         } catch (Exception e) {
             broadcastError(salaId, e.getMessage());
         }
+    }
+
+    @MessageMapping("/uno/{salaId}/reportar")
+    public void reportarUno(@DestinationVariable String salaId,
+                            @Payload Map<String, String> payload) {
+        try {
+            String reportadorId = payload.get("jugadorId");
+            String reportadoId = payload.get("reportadoId");
+            SalaUno sala = gestorSalas.getSala(salaId);
+
+            if (sala == null) {
+                broadcastError(salaId, "Sala no encontrada");
+                return;
+            }
+
+            ResultadoJugada resultado;
+            synchronized (sala) {
+                resultado = MotorUno.reportarUno(sala, reportadorId, reportadoId);
+            }
+
+            broadcastEstadoSala(sala);
+            broadcastMensaje(salaId, resultado.getMensaje());
+            log.info("Reporte UNO en sala {} — {} reportó a {}",
+                    salaId, reportadorId, reportadoId);
+        } catch (Exception e) {
+            broadcastError(salaId, e.getMessage());
+        }
+    }
+
+    @MessageMapping("/uno/{salaId}/chat")
+    public void mensajeChat(@DestinationVariable String salaId,
+                            @Payload Map<String, String> payload) {
+        String username = payload.get("username");
+        String mensaje = payload.get("mensaje");
+
+        if (username == null || username.isBlank()) return;
+        if (mensaje == null || mensaje.isBlank()) return;
+        if (mensaje.length() > 200) mensaje = mensaje.substring(0, 200);
+
+        SalaUno sala = gestorSalas.getSala(salaId);
+        if (sala == null) return;
+
+        boolean esJugadorDeSala = sala.getJugadores().stream()
+                .anyMatch(j -> j.getUsername().equals(username));
+        if (!esJugadorDeSala) return;
+
+        messagingTemplate.convertAndSend(
+                "/topic/uno/" + salaId + "/chat",
+                Map.of("username", username, "mensaje", mensaje));
+
+        log.info("Chat sala {} — {}: {}", salaId, username, mensaje);
     }
 
     private void broadcastEstadoSala(SalaUno sala) {
@@ -121,6 +190,33 @@ public class UnoWebSocketController {
         messagingTemplate.convertAndSend(
                 "/topic/uno/" + salaId + "/mensajes",
                 Map.of("mensaje", mensaje));
+    }
+
+    @MessageMapping("/uno/{salaId}/cambiarIcono")
+    public void cambiarIcono(@DestinationVariable String salaId,
+                             @Payload Map<String, String> payload) {
+        try {
+            String jugadorId = payload.get("jugadorId");
+            String icono = payload.get("icono");
+            SalaUno sala = gestorSalas.getSala(salaId);
+
+            if (sala == null) {
+                broadcastError(salaId, "Sala no encontrada");
+                return;
+            }
+
+            synchronized (sala) {
+                Jugador jugador = sala.getJugadorById(jugadorId);
+                if (jugador != null) {
+                    jugador.setIcono(icono);
+                }
+            }
+
+            broadcastEstadoSala(sala);
+            log.info("Icono cambiado en sala {} — {} ahora es {}", salaId, jugadorId, icono);
+        } catch (Exception e) {
+            broadcastError(salaId, e.getMessage());
+        }
     }
 
     private void broadcastError(String salaId, String error) {
