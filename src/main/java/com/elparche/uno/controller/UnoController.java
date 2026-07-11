@@ -15,7 +15,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/uno")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
 @Tag(name = "UNO", description = "Endpoints REST para gestión de salas del juego UNO")
 public class UnoController {
 
