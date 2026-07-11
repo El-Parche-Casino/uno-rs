@@ -61,23 +61,17 @@ public class GestorSalas {
     }
 
     private SalaUno obtenerSala(String salaId) {
-        SalaUno sala = salas.get(salaId);
-        if (sala != null) {
-            return sala;
-        }
         String json = redisTemplate.opsForValue().get(REDIS_SALA_PREFIX + salaId);
-        if (json == null) {
-            return null;
+        if (json != null) {
+            try {
+                SalaUno sala = objectMapper.readValue(json, SalaUno.class);
+                salas.put(salaId, sala);
+                return sala;
+            } catch (JsonProcessingException e) {
+                log.error("Error leyendo sala {} desde Redis: {}", salaId, e.getMessage());
+            }
         }
-        try {
-            sala = objectMapper.readValue(json, SalaUno.class);
-            salas.put(salaId, sala);
-            log.info("Sala {} cargada de Redis (no estaba en memoria local)", salaId);
-            return sala;
-        } catch (JsonProcessingException e) {
-            log.error("Error leyendo sala {} desde Redis: {}", salaId, e.getMessage());
-            return null;
-        }
+        return salas.get(salaId);
     }
 
     private void recuperarSalasDeRedis() {
