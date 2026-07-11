@@ -58,6 +58,7 @@ public class UnoWebSocketController {
             }
 
             if (resultado.isExitoso()) {
+                gestorSalas.guardarSala(sala);
                 broadcastEstadoSala(sala);
                 broadcastMensaje(salaId, resultado.getMensaje());
 
@@ -93,6 +94,7 @@ public class UnoWebSocketController {
             }
 
             if (resultado.isExitoso()) {
+                gestorSalas.guardarSala(sala);
                 broadcastEstadoSala(sala);
                 broadcastMensaje(salaId, resultado.getMensaje());
                 log.info("Carta robada en sala {} por {}", salaId, jugadorId);
@@ -122,6 +124,7 @@ public class UnoWebSocketController {
                 resultado = MotorUno.decirUno(sala, jugadorId);
             }
 
+            gestorSalas.guardarSala(sala);
             broadcastEstadoSala(sala);
             broadcastMensaje(salaId, resultado.getMensaje());
             log.info("UNO dicho en sala {} por {}", salaId, jugadorId);
@@ -148,6 +151,7 @@ public class UnoWebSocketController {
                 resultado = MotorUno.reportarUno(sala, reportadorId, reportadoId);
             }
 
+            gestorSalas.guardarSala(sala);
             broadcastEstadoSala(sala);
             broadcastMensaje(salaId, resultado.getMensaje());
             log.info("Reporte UNO en sala {} — {} reportó a {}",
@@ -212,6 +216,7 @@ public class UnoWebSocketController {
                 }
             }
 
+            gestorSalas.guardarSala(sala);
             broadcastEstadoSala(sala);
             log.info("Icono cambiado en sala {} — {} ahora es {}", salaId, jugadorId, icono);
         } catch (Exception e) {

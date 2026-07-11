@@ -280,4 +280,9 @@ public class GestorSalas {
         eliminarDeRedis(salaId);
         log.info("Sala {} eliminada", salaId);
     }
+
+    public void guardarSala(SalaUno sala) {
+        salas.put(sala.getId(), sala);
+        guardarEnRedis(sala);
+    }
 }
