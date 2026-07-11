@@ -35,6 +35,9 @@ public class GestorSalas {
         this.redisTemplate = redisTemplate;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
+        this.objectMapper.configure(
+                com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
+                false);
         recuperarSalasDeRedis();
     }
 
@@ -55,6 +58,26 @@ public class GestorSalas {
 
     private void eliminarDeRedis(String salaId) {
         redisTemplate.delete(REDIS_SALA_PREFIX + salaId);
+    }
+
+    private SalaUno obtenerSala(String salaId) {
+        SalaUno sala = salas.get(salaId);
+        if (sala != null) {
+            return sala;
+        }
+        String json = redisTemplate.opsForValue().get(REDIS_SALA_PREFIX + salaId);
+        if (json == null) {
+            return null;
+        }
+        try {
+            sala = objectMapper.readValue(json, SalaUno.class);
+            salas.put(salaId, sala);
+            log.info("Sala {} cargada de Redis (no estaba en memoria local)", salaId);
+            return sala;
+        } catch (JsonProcessingException e) {
+            log.error("Error leyendo sala {} desde Redis: {}", salaId, e.getMessage());
+            return null;
+        }
     }
 
     private void recuperarSalasDeRedis() {
@@ -127,7 +150,7 @@ public class GestorSalas {
                                String icono,
                                String codigo) {
 
-        SalaUno sala = salas.get(salaId);
+        SalaUno sala = obtenerSala(salaId);
 
         if (sala == null) throw new RuntimeException("Sala no encontrada");
         if (sala.estaLlena()) throw new RuntimeException("La sala está llena");
@@ -164,7 +187,7 @@ public class GestorSalas {
     }
 
     public SalaUno iniciarJuego(String salaId, String solicitanteId) {
-        SalaUno sala = salas.get(salaId);
+        SalaUno sala = obtenerSala(salaId);
         if (sala == null) throw new RuntimeException("Sala no encontrada");
         if (!sala.getCreadorId().equals(solicitanteId))
             throw new RuntimeException("Solo el creador puede iniciar el juego");
@@ -181,7 +204,7 @@ public class GestorSalas {
 
     public SalaUno jugarCarta(String salaId, String jugadorId,
                               String cartaId, String colorElegido) {
-        SalaUno sala = salas.get(salaId);
+        SalaUno sala = obtenerSala(salaId);
         if (sala == null) throw new RuntimeException("Sala no encontrada");
 
         synchronized (sala) {
@@ -197,7 +220,7 @@ public class GestorSalas {
     }
 
     public SalaUno robarCartaDeSala(String salaId, String jugadorId) {
-        SalaUno sala = salas.get(salaId);
+        SalaUno sala = obtenerSala(salaId);
         if (sala == null) throw new RuntimeException("Sala no encontrada");
 
         synchronized (sala) {
@@ -210,7 +233,7 @@ public class GestorSalas {
     }
 
     public void registrarGanador(String salaId, String ganadorUsername) {
-        SalaUno sala = salas.get(salaId);
+        SalaUno sala = obtenerSala(salaId);
         if (sala != null) {
             redisEventPublisher.publicarGanancia(
                     ganadorUsername, sala.getPozoTotal(), salaId);
@@ -221,7 +244,7 @@ public class GestorSalas {
     }
 
     public void devolverApuestas(String salaId) {
-        SalaUno sala = salas.get(salaId);
+        SalaUno sala = obtenerSala(salaId);
         if (sala != null) {
             sala.getJugadores().forEach(j ->
                     redisEventPublisher.publicarDevolucion(
@@ -234,7 +257,7 @@ public class GestorSalas {
     }
 
     public SalaUno getSala(String salaId) {
-        return salas.get(salaId);
+        return obtenerSala(salaId);
     }
 
     public Collection<SalaUno> getSalasPublicas() {
@@ -245,7 +268,7 @@ public class GestorSalas {
     }
 
     public void jugadorDesconectado(String salaId, String jugadorId) {
-        SalaUno sala = salas.get(salaId);
+        SalaUno sala = obtenerSala(salaId);
         if (sala != null) {
             synchronized (sala) {
                 Jugador jugador = sala.getJugadorById(jugadorId);
