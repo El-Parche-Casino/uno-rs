@@ -22,6 +22,7 @@ public class UnoWebSocketController {
 
     private final GestorSalas gestorSalas;
     private final SimpMessagingTemplate messagingTemplate;
+    private final com.elparche.uno.config.SalaBroadcastPublisher broadcastPublisher;
 
     @MessageMapping("/uno/{salaId}/iniciar")
     public void iniciarJuego(@DestinationVariable String salaId,
@@ -178,22 +179,17 @@ public class UnoWebSocketController {
                 .anyMatch(j -> j.getUsername().equals(username));
         if (!esJugadorDeSala) return;
 
-        messagingTemplate.convertAndSend(
-                "/topic/uno/" + salaId + "/chat",
-                Map.of("username", username, "mensaje", mensaje));
+        broadcastPublisher.publicarChat(salaId, username, mensaje);
 
         log.info("Chat sala {} — {}: {}", salaId, username, mensaje);
     }
 
     private void broadcastEstadoSala(SalaUno sala) {
-        messagingTemplate.convertAndSend(
-                "/topic/uno/" + sala.getId() + "/estado", sala);
+        broadcastPublisher.publicarEstado(sala.getId(), sala);
     }
 
     private void broadcastMensaje(String salaId, String mensaje) {
-        messagingTemplate.convertAndSend(
-                "/topic/uno/" + salaId + "/mensajes",
-                Map.of("mensaje", mensaje));
+        broadcastPublisher.publicarMensaje(salaId, mensaje);
     }
 
     @MessageMapping("/uno/{salaId}/cambiarIcono")
@@ -225,9 +221,7 @@ public class UnoWebSocketController {
     }
 
     private void broadcastError(String salaId, String error) {
-        messagingTemplate.convertAndSend(
-                "/topic/uno/" + salaId + "/errores",
-                Map.of("error", error));
+        broadcastPublisher.publicarError(salaId, error);
     }
 
     private void enviarErrorAJugador(String salaId, String jugadorId, String error) {
