@@ -275,6 +275,35 @@ public class GestorSalas {
         }
     }
 
+    public void reiniciarSala(String salaId) {
+        SalaUno sala = obtenerSala(salaId);
+        if (sala == null) throw new RuntimeException("Sala no encontrada");
+
+        synchronized (sala) {
+            sala.setEstado(SalaUno.EstadoSala.ESPERANDO);
+            sala.setMazo(new ArrayList<>());
+            sala.setPillaDescarte(new ArrayList<>());
+            sala.setCartaActual(null);
+            sala.setJugadorActualId(null);
+            sala.setSentidoHorario(true);
+            sala.setColorActual(null);
+            sala.setTipoPenalizacion(null);
+            sala.setPenalizacionAcumulada(0);
+            sala.setPozoTotal(sala.getApuestaPorJugador() * sala.getJugadores().size());
+
+            for (Jugador jugador : sala.getJugadores()) {
+                jugador.setMano(new ArrayList<>());
+                jugador.setDijoUno(false);
+                jugador.setPenalizadoUno(false);
+                jugador.setCartasRobadas(0);
+                jugador.setDebeResponderPenalizacion(false);
+            }
+
+            guardarSala(sala);
+        }
+        log.info("Sala {} reiniciada — vuelve a ESPERANDO", salaId);
+    }
+
     public void eliminarSala(String salaId) {
         salas.remove(salaId);
         eliminarDeRedis(salaId);

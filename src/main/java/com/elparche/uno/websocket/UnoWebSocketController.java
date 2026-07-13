@@ -39,6 +39,21 @@ public class UnoWebSocketController {
         }
     }
 
+    @MessageMapping("/uno/{salaId}/reiniciar")
+    public void reiniciarSala(@DestinationVariable String salaId,
+                              @Payload Map<String, String> payload) {
+        try {
+            gestorSalas.reiniciarSala(salaId);
+            SalaUno sala = gestorSalas.getSala(salaId);
+            broadcastEstadoSala(sala);
+            broadcastMensaje(salaId, "La sala fue reiniciada — elijan su ícono y color de nuevo");
+            log.info("Sala {} reiniciada por solicitud", salaId);
+        } catch (Exception e) {
+            broadcastError(salaId, e.getMessage());
+            log.error("Error reiniciando sala {}: {}", salaId, e.getMessage());
+        }
+    }
+
     @MessageMapping("/uno/{salaId}/jugar")
     public void jugarCarta(@DestinationVariable String salaId,
                            @Payload Map<String, String> payload) {
