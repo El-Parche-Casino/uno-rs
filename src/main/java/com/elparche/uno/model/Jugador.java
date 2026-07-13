@@ -22,6 +22,9 @@ public class Jugador {
     private String icono = "🦁";
 
     @Builder.Default
+    private String colorJugador = "#e74c3c";
+
+    @Builder.Default
     private List<Carta> mano = new ArrayList<>();
 
     @Builder.Default

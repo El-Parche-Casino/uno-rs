@@ -220,6 +220,34 @@ public class UnoWebSocketController {
         }
     }
 
+    @MessageMapping("/uno/{salaId}/cambiarColor")
+    public void cambiarColor(@DestinationVariable String salaId,
+                             @Payload Map<String, String> payload) {
+        try {
+            String jugadorId = payload.get("jugadorId");
+            String color = payload.get("color");
+            SalaUno sala = gestorSalas.getSala(salaId);
+
+            if (sala == null) {
+                broadcastError(salaId, "Sala no encontrada");
+                return;
+            }
+
+            synchronized (sala) {
+                Jugador jugador = sala.getJugadorById(jugadorId);
+                if (jugador != null) {
+                    jugador.setColorJugador(color);
+                }
+            }
+
+            gestorSalas.guardarSala(sala);
+            broadcastEstadoSala(sala);
+            log.info("Color cambiado en sala {} — {} ahora es {}", salaId, jugadorId, color);
+        } catch (Exception e) {
+            broadcastError(salaId, e.getMessage());
+        }
+    }
+
     private void broadcastError(String salaId, String error) {
         broadcastPublisher.publicarError(salaId, error);
     }
