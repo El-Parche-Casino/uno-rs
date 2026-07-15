@@ -152,10 +152,42 @@ public class MotorUno {
             return ResultadoJugada.exito(jugador.getUsername(), null, msg);
         }
 
-        Carta carta = MazoUno.robarCarta(sala.getMazo(), sala.getPillaDescarte());
-        jugador.agregarCarta(carta);
-        siguienteTurno(sala);
-        return ResultadoJugada.robo(jugador.getUsername(), carta);
+        Carta cartaEfectiva = Carta.builder()
+                .color(Carta.Color.valueOf(sala.getColorActual()))
+                .valor(sala.getCartaActual().getValor())
+                .id(sala.getCartaActual().getId())
+                .build();
+
+        int robadas = 0;
+        Carta cartaJugable = null;
+        while (cartaJugable == null) {
+            Carta carta;
+            try {
+                carta = MazoUno.robarCarta(sala.getMazo(), sala.getPillaDescarte());
+            } catch (RuntimeException e) {
+                break;
+            }
+            jugador.agregarCarta(carta);
+            robadas++;
+            if (carta.esCompatibleCon(cartaEfectiva)) {
+                cartaJugable = carta;
+            }
+        }
+
+        if (cartaJugable == null) {
+            siguienteTurno(sala);
+            ResultadoJugada resultado = ResultadoJugada.robo(jugador.getUsername(), null);
+            resultado.setMensaje(jugador.getUsername() + " robó " + robadas
+                    + (robadas == 1 ? " carta" : " cartas")
+                    + " y no encontró ninguna jugable — pasa el turno");
+            return resultado;
+        }
+
+        ResultadoJugada resultado = ResultadoJugada.robo(jugador.getUsername(), cartaJugable);
+        resultado.setMensaje(jugador.getUsername() + " robó " + robadas
+                + (robadas == 1 ? " carta" : " cartas")
+                + " hasta encontrar una jugable");
+        return resultado;
     }
 
     public static ResultadoJugada decirUno(SalaUno sala, String jugadorId) {

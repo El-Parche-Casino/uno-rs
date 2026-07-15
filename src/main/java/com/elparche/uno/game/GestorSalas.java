@@ -255,9 +255,24 @@ public class GestorSalas {
     }
 
     public Collection<SalaUno> getSalasPublicas() {
+        try {
+            var keys = redisTemplate.keys(REDIS_SALA_PREFIX + "*");
+            if (keys != null) {
+                return keys.stream()
+                        .map(k -> obtenerSala(k.substring(REDIS_SALA_PREFIX.length())))
+                        .filter(java.util.Objects::nonNull)
+                        .filter(s -> s.getTipo() == SalaUno.TipoSala.PUBLICA
+                                && s.getEstado() == SalaUno.EstadoSala.ESPERANDO
+                                && !s.getJugadores().isEmpty())
+                        .toList();
+            }
+        } catch (Exception e) {
+            log.error("Error listando salas desde Redis, usando memoria local: {}", e.getMessage());
+        }
         return salas.values().stream()
                 .filter(s -> s.getTipo() == SalaUno.TipoSala.PUBLICA
-                        && s.getEstado() == SalaUno.EstadoSala.ESPERANDO)
+                        && s.getEstado() == SalaUno.EstadoSala.ESPERANDO
+                        && !s.getJugadores().isEmpty())
                 .toList();
     }
 
@@ -302,6 +317,37 @@ public class GestorSalas {
             guardarSala(sala);
         }
         log.info("Sala {} reiniciada — vuelve a ESPERANDO", salaId);
+    }
+
+    public SalaUno salirDeSala(String salaId, String jugadorId) {
+        SalaUno sala = obtenerSala(salaId);
+        if (sala == null) return null;
+
+        synchronized (sala) {
+            boolean estaba = sala.getJugadores().removeIf(j -> j.getId().equals(jugadorId));
+            if (!estaba) return sala;
+
+            if (sala.getJugadores().isEmpty()) {
+                eliminarSala(salaId);
+                return null;
+            }
+
+            if (jugadorId.equals(sala.getCreadorId())) {
+                sala.setCreadorId(sala.getJugadores().get(0).getId());
+                log.info("Liderazgo de sala {} transferido a {}", salaId, sala.getCreadorId());
+            }
+
+            if (sala.getEstado() == SalaUno.EstadoSala.EN_JUEGO
+                    && sala.getJugadorActualId() != null
+                    && sala.getJugadorById(sala.getJugadorActualId()) == null) {
+                sala.setJugadorActualId(sala.getJugadores().get(0).getId());
+            }
+
+            guardarSala(sala);
+        }
+        log.info("Jugador {} salio de la sala {} — quedan {}",
+                jugadorId, salaId, sala.getJugadores().size());
+        return sala;
     }
 
     public void eliminarSala(String salaId) {

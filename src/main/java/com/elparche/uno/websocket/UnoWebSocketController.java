@@ -177,6 +177,42 @@ public class UnoWebSocketController {
         }
     }
 
+    @MessageMapping("/uno/{salaId}/salir")
+    public void salirDeSala(@DestinationVariable String salaId,
+                            @Payload Map<String, String> payload) {
+        try {
+            String jugadorId = payload.get("jugadorId");
+            SalaUno salaAntes = gestorSalas.getSala(salaId);
+            if (salaAntes == null) return;
+
+            Jugador saliente = salaAntes.getJugadorById(jugadorId);
+            String usernameSaliente = saliente != null ? saliente.getUsername() : jugadorId;
+            String creadorAntes = salaAntes.getCreadorId();
+
+            SalaUno sala = gestorSalas.salirDeSala(salaId, jugadorId);
+
+            if (sala == null) {
+                broadcastMensaje(salaId, "La sala fue cerrada");
+                log.info("Sala {} eliminada: se fue el ultimo jugador ({})", salaId, usernameSaliente);
+                return;
+            }
+
+            broadcastEstadoSala(sala);
+            broadcastMensaje(salaId, usernameSaliente + " salió de la sala");
+            if (!sala.getCreadorId().equals(creadorAntes)) {
+                Jugador nuevoAnfitrion = sala.getJugadorById(sala.getCreadorId());
+                if (nuevoAnfitrion != null) {
+                    broadcastMensaje(salaId, "👑 " + nuevoAnfitrion.getUsername() + " es el nuevo anfitrión");
+                }
+            }
+            log.info("{} salió de la sala {} — quedan {} jugadores",
+                    usernameSaliente, salaId, sala.getJugadores().size());
+        } catch (Exception e) {
+            broadcastError(salaId, e.getMessage());
+            log.error("Error sacando jugador de la sala {}: {}", salaId, e.getMessage());
+        }
+    }
+
     @MessageMapping("/uno/{salaId}/chat")
     public void mensajeChat(@DestinationVariable String salaId,
                             @Payload Map<String, String> payload) {
