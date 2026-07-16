@@ -1,6 +1,7 @@
 package com.elparche.uno.game;
 
 import com.elparche.uno.config.RedisEventPublisher;
+import com.elparche.uno.config.WalletClient;
 import com.elparche.uno.model.Jugador;
 import com.elparche.uno.model.SalaUno;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -24,15 +25,18 @@ public class GestorSalas {
     private final Map<String, SalaUno> salas = new ConcurrentHashMap<>();
     private final RedisEventPublisher redisEventPublisher;
     private final RedisTemplate<String, String> redisTemplate;
+    private final WalletClient walletClient;
     private final ObjectMapper objectMapper;
 
     private static final String REDIS_SALA_PREFIX = "sala:uno:";
     private static final long SALA_TTL_HOURS = 4;
 
     public GestorSalas(RedisEventPublisher redisEventPublisher,
-                       RedisTemplate<String, String> redisTemplate) {
+                       RedisTemplate<String, String> redisTemplate,
+                       WalletClient walletClient) {
         this.redisEventPublisher = redisEventPublisher;
         this.redisTemplate = redisTemplate;
+        this.walletClient = walletClient;
         this.objectMapper = new ObjectMapper();
         this.objectMapper.registerModule(new JavaTimeModule());
         this.objectMapper.configure(
@@ -103,6 +107,8 @@ public class GestorSalas {
                              SalaUno.TipoSala tipo,
                              Double apuestaPorJugador) {
 
+        validarSaldo(creadorUsername, apuestaPorJugador);
+
         String salaId = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         String codigo = tipo == SalaUno.TipoSala.PRIVADA
                 ? UUID.randomUUID().toString().substring(0, 6).toUpperCase()
@@ -156,6 +162,12 @@ public class GestorSalas {
                 throw new RuntimeException("Código de sala incorrecto");
         }
 
+        boolean estabaEnSala = sala.getJugadores().stream()
+                .anyMatch(j -> j.getId().equals(jugadorId));
+        if (!estabaEnSala) {
+            validarSaldo(jugadorUsername, sala.getApuestaPorJugador());
+        }
+
         synchronized (sala) {
             boolean yaEsta = sala.getJugadores().stream()
                     .anyMatch(j -> j.getId().equals(jugadorId));
@@ -178,6 +190,22 @@ public class GestorSalas {
         log.info("{} se unió a la sala {} — jugadores: {}/{}",
                 jugadorUsername, salaId, sala.getJugadores().size(), sala.getMaxJugadores());
         return sala;
+    }
+
+    private void validarSaldo(String username, Double apuesta) {
+        if (apuesta == null || apuesta <= 0) return;
+        Double saldo = walletClient.consultarSaldo(username);
+        if (saldo == null)
+            throw new RuntimeException("No se pudo verificar tu saldo, intenta de nuevo");
+        if (apuesta > saldo)
+            throw new RuntimeException("Saldo insuficiente: tienes " + formatearFichas(saldo)
+                    + " fichas y la apuesta es " + formatearFichas(apuesta));
+    }
+
+    private static String formatearFichas(double valor) {
+        return valor == Math.floor(valor)
+                ? String.valueOf((long) valor)
+                : String.valueOf(valor);
     }
 
     public SalaUno iniciarJuego(String salaId, String solicitanteId) {

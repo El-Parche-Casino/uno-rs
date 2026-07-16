@@ -22,7 +22,7 @@ public class UnoController {
 
     @Operation(summary = "Crear sala", description = "Crea una sala pública o privada de UNO con apuesta por jugador")
     @PostMapping("/salas")
-    public ResponseEntity<SalaUno> crearSala(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> crearSala(@RequestBody Map<String, String> body) {
         try {
             SalaUno sala = gestorSalas.crearSala(
                     body.get("nombre"),
@@ -35,13 +35,14 @@ public class UnoController {
             );
             return ResponseEntity.status(HttpStatus.CREATED).body(sala);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage() != null ? e.getMessage() : "No se pudo crear la sala"));
         }
     }
 
     @Operation(summary = "Unirse a sala", description = "Un jugador se une a una sala existente")
     @PostMapping("/salas/{salaId}/unirse")
-    public ResponseEntity<SalaUno> unirseASala(
+    public ResponseEntity<?> unirseASala(
             @PathVariable String salaId,
             @RequestBody Map<String, String> body) {
         try {
@@ -54,7 +55,8 @@ public class UnoController {
             );
             return ResponseEntity.ok(sala);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().build();
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage() != null ? e.getMessage() : "No se pudo unir a la sala"));
         }
     }
 
