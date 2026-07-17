@@ -43,7 +43,9 @@ public class UnoWebSocketController {
     public void reiniciarSala(@DestinationVariable String salaId,
                               @Payload Map<String, String> payload) {
         try {
-            gestorSalas.reiniciarSala(salaId);
+            if (!gestorSalas.reiniciarSala(salaId)) {
+                return;
+            }
             SalaUno sala = gestorSalas.getSala(salaId);
             broadcastEstadoSala(sala);
             broadcastMensaje(salaId, "La sala fue reiniciada — elijan su ícono y color de nuevo");

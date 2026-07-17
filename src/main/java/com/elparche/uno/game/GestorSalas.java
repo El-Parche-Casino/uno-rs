@@ -318,11 +318,17 @@ public class GestorSalas {
         }
     }
 
-    public void reiniciarSala(String salaId) {
+    public boolean reiniciarSala(String salaId) {
         SalaUno sala = obtenerSala(salaId);
         if (sala == null) throw new RuntimeException("Sala no encontrada");
 
         synchronized (sala) {
+            if (sala.getEstado() != SalaUno.EstadoSala.TERMINADA) {
+                log.info("Reinicio ignorado en sala {}: estado {} (solo se reinicia una sala TERMINADA)",
+                        salaId, sala.getEstado());
+                return false;
+            }
+
             sala.setEstado(SalaUno.EstadoSala.ESPERANDO);
             sala.setMazo(new ArrayList<>());
             sala.setPillaDescarte(new ArrayList<>());
@@ -342,9 +348,17 @@ public class GestorSalas {
                 jugador.setDebeResponderPenalizacion(false);
             }
 
+            if (sala.getApuestaPorJugador() != null && sala.getApuestaPorJugador() > 0) {
+                for (Jugador jugador : sala.getJugadores()) {
+                    redisEventPublisher.publicarApuesta(
+                            jugador.getUsername(), sala.getApuestaPorJugador(), salaId);
+                }
+            }
+
             guardarSala(sala);
         }
-        log.info("Sala {} reiniciada — vuelve a ESPERANDO", salaId);
+        log.info("Sala {} reiniciada — vuelve a ESPERANDO y se cobraron las apuestas de la nueva ronda", salaId);
+        return true;
     }
 
     public SalaUno salirDeSala(String salaId, String jugadorId) {
