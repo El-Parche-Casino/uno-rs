@@ -23,6 +23,7 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/uno/admin/**").hasRole("ADMIN")
                         .requestMatchers(
                                 "/ws/uno/**",
                                 "/api/uno/health",

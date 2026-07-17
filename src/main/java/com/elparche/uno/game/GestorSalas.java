@@ -282,6 +282,29 @@ public class GestorSalas {
         return obtenerSala(salaId);
     }
 
+    public java.util.List<Map<String, Object>> listarSalasActivas() {
+        java.util.List<Map<String, Object>> lista = new ArrayList<>();
+        java.util.Set<String> claves = redisTemplate.keys(REDIS_SALA_PREFIX + "*");
+        if (claves == null) return lista;
+        for (String clave : claves) {
+            try {
+                String json = redisTemplate.opsForValue().get(clave);
+                if (json == null) continue;
+                SalaUno sala = objectMapper.readValue(json, SalaUno.class);
+                if (sala.getEstado() == SalaUno.EstadoSala.TERMINADA) continue;
+                Map<String, Object> item = new java.util.LinkedHashMap<>();
+                item.put("id", sala.getId());
+                item.put("nombre", sala.getNombre());
+                item.put("jugadores", sala.getJugadores() != null ? sala.getJugadores().size() : 0);
+                item.put("estado", sala.getEstado().name());
+                lista.add(item);
+            } catch (Exception e) {
+                log.warn("No se pudo leer la sala {} para el listado admin: {}", clave, e.getMessage());
+            }
+        }
+        return lista;
+    }
+
     public Collection<SalaUno> getSalasPublicas() {
         try {
             var keys = redisTemplate.keys(REDIS_SALA_PREFIX + "*");
