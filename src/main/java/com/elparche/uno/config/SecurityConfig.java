@@ -23,14 +23,16 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/uno/admin/**").hasRole("ADMIN")
                         .requestMatchers(
-                                "/ws/uno/**",
-                                "/api/uno/health",
-                                "/api/uno/salas/publicas",
+                                "/api/uno/admin/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**"
+                        ).hasRole("ADMIN")
+                        .requestMatchers(
+                                "/ws/uno/**",
+                                "/api/uno/health",
+                                "/api/uno/salas/publicas"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
