@@ -41,6 +41,9 @@ public class StompAuthInterceptor implements ChannelInterceptor {
                             "Token invalido o expirado");
                 }
                 accessor.setUser(() -> username);
+                if (accessor.getSessionAttributes() != null) {
+                    accessor.getSessionAttributes().put("rol", jwtUtil.extractRol(jwt));
+                }
                 log.info("Conexion WebSocket autenticada para usuario: {}", username);
             } catch (org.springframework.messaging.MessagingException e) {
                 throw e;
@@ -48,6 +51,21 @@ public class StompAuthInterceptor implements ChannelInterceptor {
                 log.warn("Conexion WebSocket rechazada: token no se pudo validar - {}", e.getMessage());
                 throw new org.springframework.messaging.MessagingException(
                         "Token invalido");
+            }
+        }
+
+        if (accessor != null && StompCommand.SUBSCRIBE.equals(accessor.getCommand())) {
+            String destino = accessor.getDestination();
+            if (destino != null && destino.startsWith("/topic/dashboard/")) {
+                Object rol = accessor.getSessionAttributes() != null
+                        ? accessor.getSessionAttributes().get("rol")
+                        : null;
+                if (!"ADMIN".equals(rol)) {
+                    log.warn("Suscripcion al dashboard rechazada para {} (rol: {})",
+                            accessor.getUser() != null ? accessor.getUser().getName() : "desconocido", rol);
+                    throw new org.springframework.messaging.MessagingException(
+                            "Solo un ADMIN puede suscribirse al dashboard");
+                }
             }
         }
 

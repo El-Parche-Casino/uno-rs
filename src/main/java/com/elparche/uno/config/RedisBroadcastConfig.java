@@ -12,6 +12,7 @@ import org.springframework.data.redis.listener.ChannelTopic;
 public class RedisBroadcastConfig {
 
     private final SalaBroadcastListener salaBroadcastListener;
+    private final DashboardBroadcastListener dashboardBroadcastListener;
 
     @Bean
     public RedisMessageListenerContainer redisMessageListenerContainer(
@@ -19,6 +20,7 @@ public class RedisBroadcastConfig {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.addMessageListener(salaBroadcastListener, new ChannelTopic(SalaBroadcastPublisher.CANAL));
+        container.addMessageListener(dashboardBroadcastListener, new ChannelTopic(DashboardBroadcastListener.CANAL));
         return container;
     }
 }
