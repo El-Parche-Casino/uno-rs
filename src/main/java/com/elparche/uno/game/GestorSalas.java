@@ -352,8 +352,20 @@ public class GestorSalas {
         if (sala == null) return null;
 
         synchronized (sala) {
+            Jugador saliente = sala.getJugadorById(jugadorId);
             boolean estaba = sala.getJugadores().removeIf(j -> j.getId().equals(jugadorId));
             if (!estaba) return sala;
+
+            if (sala.getEstado() == SalaUno.EstadoSala.ESPERANDO
+                    && sala.getApuestaPorJugador() != null
+                    && sala.getApuestaPorJugador() > 0
+                    && saliente != null) {
+                sala.setPozoTotal(Math.max(0, sala.getPozoTotal() - sala.getApuestaPorJugador()));
+                redisEventPublisher.publicarDevolucion(
+                        saliente.getUsername(), sala.getApuestaPorJugador(), salaId);
+                log.info("Apuesta devuelta a {} al salir de la sala {} en espera — pozo queda en {}",
+                        saliente.getUsername(), salaId, sala.getPozoTotal());
+            }
 
             if (sala.getJugadores().isEmpty()) {
                 eliminarSala(salaId);
