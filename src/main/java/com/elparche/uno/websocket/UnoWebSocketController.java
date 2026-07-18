@@ -23,6 +23,7 @@ public class UnoWebSocketController {
     private final GestorSalas gestorSalas;
     private final SimpMessagingTemplate messagingTemplate;
     private final com.elparche.uno.config.SalaBroadcastPublisher broadcastPublisher;
+    private final com.elparche.uno.game.TurnoTimeoutManager turnoTimeoutManager;
 
     @MessageMapping("/uno/{salaId}/iniciar")
     public void iniciarJuego(@DestinationVariable String salaId,
@@ -32,6 +33,7 @@ public class UnoWebSocketController {
             SalaUno sala = gestorSalas.iniciarJuego(salaId, jugadorId);
             broadcastEstadoSala(sala);
             broadcastMensaje(salaId, "El juego ha comenzado");
+            turnoTimeoutManager.reprogramar(sala);
             log.info("Juego iniciado en sala {} por {}", salaId, jugadorId);
         } catch (Exception e) {
             broadcastError(salaId, e.getMessage());
@@ -44,6 +46,9 @@ public class UnoWebSocketController {
                               @Payload Map<String, String> payload) {
         try {
             GestorSalas.ResultadoReinicio resultado = gestorSalas.reiniciarSala(salaId);
+            if (resultado.reiniciada()) {
+                turnoTimeoutManager.cancelar(salaId);
+            }
             if (!resultado.reiniciada()) {
                 if (resultado.error() != null) {
                     broadcastError(salaId, resultado.error());
@@ -91,6 +96,9 @@ public class UnoWebSocketController {
                 if (resultado.getTipo() == ResultadoJugada.TipoResultado.GANADOR) {
                     broadcastMensaje(salaId, "🏆 " + resultado.getMensaje());
                     gestorSalas.registrarGanador(salaId, resultado.getJugadorUsername());
+                    turnoTimeoutManager.cancelar(salaId);
+                } else {
+                    turnoTimeoutManager.reprogramar(sala);
                 }
                 log.info("Carta jugada en sala {} por {} — {}", salaId, jugadorId, resultado.getMensaje());
             } else {
@@ -123,6 +131,7 @@ public class UnoWebSocketController {
                 gestorSalas.guardarSala(sala);
                 broadcastEstadoSala(sala);
                 broadcastMensaje(salaId, resultado.getMensaje());
+                turnoTimeoutManager.reprogramar(sala);
                 log.info("Carta robada en sala {} por {}", salaId, jugadorId);
             } else {
                 enviarErrorAJugador(salaId, jugadorId, resultado.getMensaje());
@@ -202,11 +211,13 @@ public class UnoWebSocketController {
             SalaUno sala = gestorSalas.salirDeSala(salaId, jugadorId);
 
             if (sala == null) {
+                turnoTimeoutManager.cancelar(salaId);
                 broadcastMensaje(salaId, "La sala fue cerrada");
                 log.info("Sala {} eliminada: se fue el ultimo jugador ({})", salaId, usernameSaliente);
                 return;
             }
 
+            turnoTimeoutManager.reprogramar(sala);
             broadcastEstadoSala(sala);
             broadcastMensaje(salaId, usernameSaliente + " salió de la sala");
             if (!sala.getCreadorId().equals(creadorAntes)) {

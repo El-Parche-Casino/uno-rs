@@ -35,6 +35,13 @@ public class SalaBroadcastPublisher {
         publicar(salaId, "chat", Map.of("username", username, "mensaje", mensaje));
     }
 
+    // deadlineEpochMs es el instante real del servidor en el que el timeout dispara;
+    // el frontend lo usa para sincronizar el contador visual en vez de estimarlo.
+    public void publicarTimer(String salaId, long segundos) {
+        long deadline = System.currentTimeMillis() + segundos * 1000;
+        publicar(salaId, "timer", Map.of("segundos", segundos, "deadlineEpochMs", deadline));
+    }
+
     private void publicar(String salaId, String tipo, Object payload) {
         try {
             Map<String, Object> sobre = Map.of("salaId", salaId, "tipo", tipo, "payload", payload);

@@ -60,6 +60,23 @@ public class UnoController {
         }
     }
 
+    @Operation(summary = "Unirse por código", description = "Un jugador se une a una sala privada usando solo el código")
+    @PostMapping("/salas/unirse-por-codigo")
+    public ResponseEntity<?> unirsePorCodigo(@RequestBody Map<String, String> body) {
+        try {
+            SalaUno sala = gestorSalas.unirsePorCodigo(
+                    body.get("codigo"),
+                    body.get("jugadorId"),
+                    body.get("jugadorUsername"),
+                    body.get("icono")
+            );
+            return ResponseEntity.ok(sala);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", e.getMessage() != null ? e.getMessage() : "No se pudo unir a la sala"));
+        }
+    }
+
     @Operation(summary = "Ver salas públicas", description = "Lista todas las salas públicas disponibles")
     @GetMapping("/salas/publicas")
     public ResponseEntity<Collection<SalaUno>> getSalasPublicas() {

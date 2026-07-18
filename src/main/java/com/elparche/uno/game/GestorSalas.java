@@ -192,6 +192,38 @@ public class GestorSalas {
         return sala;
     }
 
+    public SalaUno unirsePorCodigo(String codigo,
+                                   String jugadorId,
+                                   String jugadorUsername,
+                                   String icono) {
+        if (codigo == null || codigo.isBlank())
+            throw new RuntimeException("Debes ingresar el código de la sala");
+        String normalizado = codigo.trim().toUpperCase();
+
+        SalaUno encontrada = null;
+        try {
+            var claves = redisTemplate.keys(REDIS_SALA_PREFIX + "*");
+            if (claves != null) {
+                encontrada = claves.stream()
+                        .map(k -> obtenerSala(k.substring(REDIS_SALA_PREFIX.length())))
+                        .filter(java.util.Objects::nonNull)
+                        .filter(s -> normalizado.equals(s.getCodigo()))
+                        .findFirst().orElse(null);
+            }
+        } catch (Exception e) {
+            log.error("Error buscando sala por código en Redis: {}", e.getMessage());
+        }
+        if (encontrada == null) {
+            encontrada = salas.values().stream()
+                    .filter(s -> normalizado.equals(s.getCodigo()))
+                    .findFirst().orElse(null);
+        }
+        if (encontrada == null)
+            throw new RuntimeException("No existe una sala con ese código");
+
+        return unirseASala(encontrada.getId(), jugadorId, jugadorUsername, icono, normalizado);
+    }
+
     private void validarSaldo(String username, Double apuesta) {
         if (apuesta == null || apuesta <= 0) return;
         Double saldo = walletClient.consultarSaldo(username);
@@ -280,6 +312,21 @@ public class GestorSalas {
 
     public SalaUno getSala(String salaId) {
         return obtenerSala(salaId);
+    }
+
+    // Solo Redis, sin fallback a memoria local: para el path del timeout, que no
+    // debe resucitar salas ya eliminadas.
+    public SalaUno obtenerSalaDesdeRedis(String salaId) {
+        String json = redisTemplate.opsForValue().get(REDIS_SALA_PREFIX + salaId);
+        if (json == null) return null;
+        try {
+            SalaUno sala = objectMapper.readValue(json, SalaUno.class);
+            salas.put(salaId, sala);
+            return sala;
+        } catch (JsonProcessingException e) {
+            log.error("Error leyendo sala {} desde Redis: {}", salaId, e.getMessage());
+            return null;
+        }
     }
 
     public java.util.List<Map<String, Object>> listarSalasActivas() {
