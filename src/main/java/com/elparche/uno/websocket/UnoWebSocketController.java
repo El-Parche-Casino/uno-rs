@@ -43,13 +43,21 @@ public class UnoWebSocketController {
     public void reiniciarSala(@DestinationVariable String salaId,
                               @Payload Map<String, String> payload) {
         try {
-            if (!gestorSalas.reiniciarSala(salaId)) {
+            GestorSalas.ResultadoReinicio resultado = gestorSalas.reiniciarSala(salaId);
+            if (!resultado.reiniciada()) {
+                if (resultado.error() != null) {
+                    broadcastError(salaId, resultado.error());
+                }
                 return;
+            }
+            for (String username : resultado.excluidos()) {
+                broadcastMensaje(salaId, username
+                        + " fue retirado de la sala: no tiene saldo suficiente para la apuesta de la nueva ronda");
             }
             SalaUno sala = gestorSalas.getSala(salaId);
             broadcastEstadoSala(sala);
             broadcastMensaje(salaId, "La sala fue reiniciada — elijan su ícono y color de nuevo");
-            log.info("Sala {} reiniciada por solicitud", salaId);
+            log.info("Sala {} reiniciada por solicitud — excluidos por saldo: {}", salaId, resultado.excluidos());
         } catch (Exception e) {
             broadcastError(salaId, e.getMessage());
             log.error("Error reiniciando sala {}: {}", salaId, e.getMessage());

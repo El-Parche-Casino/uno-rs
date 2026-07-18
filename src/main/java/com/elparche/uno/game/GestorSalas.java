@@ -341,15 +341,56 @@ public class GestorSalas {
         }
     }
 
-    public boolean reiniciarSala(String salaId) {
+    public record ResultadoReinicio(boolean reiniciada, java.util.List<String> excluidos, String error) {
+    }
+
+    public ResultadoReinicio reiniciarSala(String salaId) {
         SalaUno sala = obtenerSala(salaId);
         if (sala == null) throw new RuntimeException("Sala no encontrada");
 
+        java.util.List<String> excluidos = new ArrayList<>();
         synchronized (sala) {
             if (sala.getEstado() != SalaUno.EstadoSala.TERMINADA) {
                 log.info("Reinicio ignorado en sala {}: estado {} (solo se reinicia una sala TERMINADA)",
                         salaId, sala.getEstado());
-                return false;
+                return new ResultadoReinicio(false, java.util.List.of(), null);
+            }
+
+            Double apuesta = sala.getApuestaPorJugador();
+            java.util.List<Jugador> sinSaldo = new ArrayList<>();
+            if (apuesta != null && apuesta > 0) {
+                for (Jugador jugador : sala.getJugadores()) {
+                    Double saldo = walletClient.consultarSaldo(jugador.getUsername());
+                    if (saldo == null) {
+                        log.info("Reinicio rechazado en sala {}: wallet no disponible para verificar saldos", salaId);
+                        return new ResultadoReinicio(false, java.util.List.of(),
+                                "No se pudo verificar el saldo de los jugadores, intenta de nuevo");
+                    }
+                    if (apuesta > saldo) {
+                        sinSaldo.add(jugador);
+                    }
+                }
+            }
+
+            if (!sinSaldo.isEmpty() && sala.getJugadores().size() - sinSaldo.size() < 2) {
+                String nombres = sinSaldo.stream().map(Jugador::getUsername)
+                        .collect(java.util.stream.Collectors.joining(", "));
+                log.info("Reinicio rechazado en sala {}: sin saldo suficiente [{}] y quedarian menos de 2 jugadores",
+                        salaId, nombres);
+                return new ResultadoReinicio(false, java.util.List.of(),
+                        "No se puede reiniciar: " + nombres + " no tiene saldo suficiente para la apuesta"
+                                + " y quedarian menos de 2 jugadores en la sala");
+            }
+
+            for (Jugador jugador : sinSaldo) {
+                sala.getJugadores().removeIf(j -> j.getId().equals(jugador.getId()));
+                excluidos.add(jugador.getUsername());
+                log.info("Jugador {} excluido de la sala {} al reiniciar: saldo insuficiente para la apuesta de {}",
+                        jugador.getUsername(), salaId, apuesta);
+            }
+            if (!excluidos.isEmpty() && sala.getJugadorById(sala.getCreadorId()) == null) {
+                sala.setCreadorId(sala.getJugadores().get(0).getId());
+                log.info("Liderazgo de sala {} transferido a {}", salaId, sala.getCreadorId());
             }
 
             sala.setEstado(SalaUno.EstadoSala.ESPERANDO);
@@ -381,7 +422,7 @@ public class GestorSalas {
             guardarSala(sala);
         }
         log.info("Sala {} reiniciada — vuelve a ESPERANDO y se cobraron las apuestas de la nueva ronda", salaId);
-        return true;
+        return new ResultadoReinicio(true, excluidos, null);
     }
 
     public SalaUno salirDeSala(String salaId, String jugadorId) {
