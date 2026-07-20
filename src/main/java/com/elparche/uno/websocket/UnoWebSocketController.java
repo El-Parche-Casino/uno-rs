@@ -201,8 +201,12 @@ public class UnoWebSocketController {
                             @Payload Map<String, String> payload) {
         try {
             String jugadorId = payload.get("jugadorId");
-            SalaUno salaAntes = gestorSalas.getSala(salaId);
-            if (salaAntes == null) return;
+            SalaUno salaAntes = gestorSalas.obtenerSalaDesdeRedis(salaId);
+            if (salaAntes == null) {
+                turnoTimeoutManager.cancelar(salaId);
+                log.info("Salir ignorado en sala {}: ya no existe", salaId);
+                return;
+            }
 
             Jugador saliente = salaAntes.getJugadorById(jugadorId);
             String usernameSaliente = saliente != null ? saliente.getUsername() : jugadorId;

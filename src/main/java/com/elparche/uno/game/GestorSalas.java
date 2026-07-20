@@ -218,10 +218,13 @@ public class GestorSalas {
                     .filter(s -> normalizado.equals(s.getCodigo()))
                     .findFirst().orElse(null);
         }
+        if (encontrada == null) {
+            encontrada = obtenerSala(normalizado);
+        }
         if (encontrada == null)
             throw new RuntimeException("No existe una sala con ese código");
 
-        return unirseASala(encontrada.getId(), jugadorId, jugadorUsername, icono, normalizado);
+        return unirseASala(encontrada.getId(), jugadorId, jugadorUsername, icono, encontrada.getCodigo());
     }
 
     private void validarSaldo(String username, Double apuesta) {
@@ -293,7 +296,6 @@ public class GestorSalas {
                     ganadorUsername, sala.getPozoTotal(), salaId);
             log.info("Ganador: {} — pozo: {} fichas — sala: {}",
                     ganadorUsername, sala.getPozoTotal(), salaId);
-            eliminarDeRedis(salaId);
         }
     }
 
@@ -473,7 +475,7 @@ public class GestorSalas {
     }
 
     public SalaUno salirDeSala(String salaId, String jugadorId) {
-        SalaUno sala = obtenerSala(salaId);
+        SalaUno sala = obtenerSalaDesdeRedis(salaId);
         if (sala == null) return null;
 
         synchronized (sala) {

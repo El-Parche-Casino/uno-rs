@@ -70,17 +70,9 @@ public class MotorUno {
         }
 
         if (jugador.isDebeResponderPenalizacion()) {
-            String tipoPen = sala.getTipoPenalizacion();
-            if ("MAS_DOS".equals(tipoPen)) {
-                if (carta.getValor() != Carta.Valor.MAS_DOS && carta.getValor() != Carta.Valor.MAS_CUATRO) {
-                    return ResultadoJugada.error(
-                            "Debes responder con +2 o +4, o roba " + sala.getPenalizacionAcumulada() + " cartas");
-                }
-            } else if ("MAS_CUATRO".equals(tipoPen)) {
-                if (carta.getValor() != Carta.Valor.MAS_CUATRO) {
-                    return ResultadoJugada.error(
-                            "Debes responder con +4, o roba " + sala.getPenalizacionAcumulada() + " cartas");
-                }
+            if (carta.getValor() != Carta.Valor.MAS_DOS && carta.getValor() != Carta.Valor.MAS_CUATRO) {
+                return ResultadoJugada.error(
+                        "Debes responder con +2 o +4, o roba " + sala.getPenalizacionAcumulada() + " cartas");
             }
             jugador.setDebeResponderPenalizacion(false);
         } else {
@@ -224,7 +216,7 @@ public class MotorUno {
                 Jugador siguiente = sala.getJugadorActual();
                 siguiente.setDebeResponderPenalizacion(true);
                 return siguiente.getUsername() + " recibe +" + sala.getPenalizacionAcumulada()
-                        + " — puede responder con +2 o comer las cartas";
+                        + " — puede responder con +2 o +4, o comer las cartas";
             }
             case MAS_CUATRO -> {
                 sala.setPenalizacionAcumulada(sala.getPenalizacionAcumulada() + 4);
@@ -233,7 +225,7 @@ public class MotorUno {
                 Jugador siguiente = sala.getJugadorActual();
                 siguiente.setDebeResponderPenalizacion(true);
                 return siguiente.getUsername() + " recibe +" + sala.getPenalizacionAcumulada()
-                        + " — puede responder con +4 o comer las cartas";
+                        + " — puede responder con +2 o +4, o comer las cartas";
             }
             default -> {
                 siguienteTurno(sala);
